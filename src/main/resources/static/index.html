@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket聊天</title>
+    <link href="/chat/bootstrap.css" rel="stylesheet">
+</head>
+<style>
+    body {
+        background-color: #f5f5f5;
+    }
+
+    #main-content {
+        max-width: 940px;
+        padding: 2em 3em;
+        margin: 0 auto 20px;
+        background-color: #fff;
+        border: 1px solid #e5e5e5;
+        -webkit-border-radius: 5px;
+        -moz-border-radius: 5px;
+        border-radius: 5px;
+    }
+</style>
+<body>
+<noscript>
+    <h2 style="color: #ff0000">
+        Seems your browser doesn't support Javascript! Websocket relies on Javascript being enabled. Please enable
+        Javascript and reload this page!
+    </h2>
+</noscript>
+<div id="main-content" class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <form class="form-inline">
+                <div class="form-group">
+                    <label for="connect">WebSocket connection:</label>
+                    <input type="text" id="name" class="form-control" placeholder="Your name here...">
+                    <button id="connect" class="btn btn-default" type="submit">Connect</button>
+                    <button id="disconnect" class="btn btn-default" type="submit" disabled="disabled">Disconnect</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <form class="form-inline">
+                <div class="form-group">
+                    <label for="to_name">发送给谁?</label>
+                    <input type="text" id="to_name" class="form-control" placeholder="To name here...">
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <form class="form-inline">
+                <div class="form-group">
+                    <label for="name">发送内容?</label>
+                    <textarea type="text" id="message" class="form-control"></textarea>
+                </div>
+                <button id="send" class="btn btn-default" type="submit">Send</button>
+
+                <button id="send_point" class="btn btn-primary" type="submit">Send To</button>
+            </form>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <table id="conversation" class="table table-striped">
+                <thead>
+                <tr>
+                    <th>Greetings</th>
+                </tr>
+                </thead>
+                <tbody id="greetings">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+<script src="/chat/jquery.min.js"></script>
+<script src="/chat/sockjs.min.js"></script>
+<script src="/chat/stomp.min.js"></script>
+<script type="text/javascript">
+    var stompClient = null;
+
+    function setConnected(connected) {
+        $("#connect").prop("disabled", connected);
+        $("#disconnect").prop("disabled", !connected);
+        if (connected) {
+            $("#conversation").show();
+        } else {
+            $("#conversation").hide();
+        }
+        $("#greetings").html("");
+    }
+
+    function connect() {
+        var socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({'name': $('#name').val()}, function (frame) {
+            setConnected(true);
+            console.log('已链接: ' + frame);
+            stompClient.subscribe('/topic/public', function (msg) {
+                showGreeting(JSON.parse(msg.body));
+            });
+
+            stompClient.subscribe('/user/topic/point', function (msg) {
+                showGreeting(JSON.parse(msg.body));
+            });
+        });
+    }
+
+    function disconnect() {
+        if (stompClient !== null) {
+            stompClient.disconnect();
+        }
+        setConnected(false);
+        console.log("Disconnected");
+    }
+
+    function sendName() {
+        // JSON.stringify({'name': $('#name').val()})
+        stompClient.send("/app/chat", {}, JSON.stringify({
+            'name': $('#name').val(),
+            'receiver': $('#to_name').val(),
+            'content': $('#message').val()
+        }));
+    }
+
+    function sendNamePoint() {
+        // JSON.stringify({'name': $('#name').val()})
+        stompClient.send("/user/point", {}, JSON.stringify({
+            'name': $('#name').val(),
+            'receiver': $('#to_name').val(),
+            'content': $('#message').val()
+        }));
+    }
+
+    function showGreeting(body) {
+        $("#greetings").append("<tr><td>发送方：" + body.name + " 接收方：" + body.receiver + " 内容：" + body.content + "</td></tr>");
+    }
+
+    $(function () {
+        $("form").on('submit', function (e) {
+            e.preventDefault();
+        });
+        $("#connect").click(function () {
+            connect();
+        });
+        $("#disconnect").click(function () {
+            disconnect();
+        });
+        $("#send").click(function () {
+            sendName();
+        });
+
+        $("#send_point").click(function () {
+            sendNamePoint();
+        });
+    });
+</script>
+</html>
